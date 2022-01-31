@@ -9,23 +9,19 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import reactor.kafka.receiver.KafkaReceiver;
 import reactor.kafka.receiver.ReceiverOptions;
 import reactor.kafka.sender.KafkaSender;
 import reactor.kafka.sender.SenderOptions;
 
-import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
 @Configuration
 public class KafkaConfig {
-    static final String TOPIC = "reactor-kafka-sandbox-topic-1";
 
     @Bean
-    public KafkaReceiver<Integer, String> kafkaReceiver() {
+    public ReceiverOptions<Integer, String> receiverOptions() {
         Map<String, Object> props = Map.of(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092",
                 ConsumerConfig.GROUP_ID_CONFIG, "sandbox-group-id",
@@ -34,12 +30,9 @@ public class KafkaConfig {
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
                 ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 10000
         );
-        ReceiverOptions<Integer, String> ro = ReceiverOptions.<Integer, String>create(props)
-                .commitBatchSize(1)//Commit every record
-                .commitInterval(Duration.ZERO)
-                .subscription(Collections.singletonList(TOPIC));
+        ReceiverOptions<Integer, String> ro = ReceiverOptions.create(props);
         log.info("Create receiver with properties: {}", props);
-        return KafkaReceiver.create(ro);
+        return ro;
     }
 
     @Bean
