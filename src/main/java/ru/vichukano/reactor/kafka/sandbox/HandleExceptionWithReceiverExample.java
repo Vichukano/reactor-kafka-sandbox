@@ -1,4 +1,4 @@
-package ru.vichukano.reactor.kafka.sandbox.configuration;
+package ru.vichukano.reactor.kafka.sandbox;
 
 import lombok.EqualsAndHashCode;
 import lombok.Value;
@@ -6,14 +6,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.Disposable;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.kafka.receiver.KafkaReceiver;
+import reactor.kafka.receiver.ReceiverOptions;
 import reactor.kafka.receiver.ReceiverRecord;
-import reactor.kafka.sender.KafkaSender;
-import reactor.kafka.sender.SenderRecord;
+import ru.vichukano.reactor.kafka.sandbox.configuration.SenderFlowConfig;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.time.Duration;
+import java.util.Collections;
 
 
 /**
@@ -21,24 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 @Configuration
-public class ServiceEntryPoint {
-    private final AtomicInteger counter = new AtomicInteger(0);
-
-    @Bean
-    public Disposable senderFlow(KafkaSender<Integer, String> kafkaSender) {
-        Flux<SenderRecord<Integer, String, Integer>> senderFlux = Flux.just("one", "two", "three", "four", "five")
-                .map(e -> SenderRecord.create(
-                        KafkaConfig.TOPIC, 1, System.currentTimeMillis(), counter.incrementAndGet(), e, counter.get()
-                ));
-        log.info("Start to send records");
-        return kafkaSender.send(senderFlux)
-                .doOnNext(r -> log.info("Send record: offset: {}, partition: {}, metadata: {}",
-                        r.recordMetadata().offset(),
-                        r.recordMetadata().partition(),
-                        r.correlationMetadata()))
-                .doOnComplete(() -> log.info("Sender Flux completed"))
-                .subscribe();
-    }
+public class HandleExceptionWithReceiverExample {
 
     /**
      * Need to ack record which produces exception.
@@ -46,9 +29,13 @@ public class ServiceEntryPoint {
      * If poison record does not committed, then flux will be stopped and recreate in infinite loop
      */
     @Bean
-    public Disposable consumerFlux(KafkaReceiver<Integer, String> kafkaReceiver) {
+    public Disposable handleExceptionFlow(ReceiverOptions<Integer, String> receiverOptions) {
         log.info("Start kafka receiver");
-        return kafkaReceiver.receive()
+        return KafkaReceiver.create(receiverOptions
+                        .commitBatchSize(1)//Commit every record
+                        .commitInterval(Duration.ZERO)
+                        .subscription(Collections.singletonList(SenderFlowConfig.TOPIC)))
+                .receive()
                 .doOnNext(r -> {
                     log.info("Received: offset: {}, key: {}, value: {}", r.receiverOffset().offset(), r.key(), r.value());
                     if ("three".equals(r.value())) throw new ReactiveExceptionWrapper(r, new RuntimeException("BOOM"));
